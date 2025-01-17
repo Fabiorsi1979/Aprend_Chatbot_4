@@ -1,36 +1,166 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --message-bg: #f9f9f9;
+            --user-message-bg: #e3f2fd;
+        }
+        
+        .dark-mode {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --message-bg: #2d2d2d;
+            --user-message-bg: #004080;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        #chat-log {
+            margin-top: 20px;
+            border: 1px solid var(--text-color);
+            padding: 15px;
+            height: 400px;
+            overflow-y: auto;
+            background: var(--message-bg);
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background: var(--user-message-bg);
+            margin-left: 20%;
+        }
+        .bot-message {
+            background: var(--message-bg);
+            margin-right: 20%;
+            border: 1px solid var(--text-color);
+        }
+        #chat-form {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        #message {
+            flex: 1;
+            padding: 8px;
+        }
+        button {
+            padding: 8px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <h1>Chat com Langchain e DeepSeek</h1>
-    <form id="chat-form">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>aGente</h1>
+        <button id="theme-toggle" style="padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; background-color: var(--user-message-bg); color: var(--text-color);">
+            🌙 Dark Mode
+        </button>
+    </div>
+    <div id="chat-log"></div>
+    <form id="chat-form" method="post">
+        {% csrf_token %}
         <input type="text" id="message" placeholder="Digite sua mensagem" required>
         <button type="submit">Enviar</button>
     </form>
-    <div id="chat-log"></div>
 
     <script>
         document.getElementById('chat-form').addEventListener('submit', function(event) {
             event.preventDefault();
-            const message = document.getElementById('message').value;
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+            
+            const chatLog = document.getElementById('chat-log');
+            
+            // Adicionar mensagem do usuário
+            chatLog.innerHTML += `
+                <div class="message user-message">
+                    <strong>Você:</strong> ${message}
+                </div>`;
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
             fetch('', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrfToken
                 },
-                body: new URLSearchParams({message: message})
+                body: new URLSearchParams({
+                    message: message,
+                    csrfmiddlewaretoken: csrfToken
+                })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro na requisição');
+                }
+                return response.json();
+            })
             .then(data => {
-                const chatLog = document.getElementById('chat-log');
-                chatLog.innerHTML += `<p><strong>Você:</strong> ${message}</p>`;
-                chatLog.innerHTML += `<p><strong>Resposta:</strong> ${data.response}</p>`;
-                document.getElementById('message').value = '';
+                if (data.status === 'error') {
+                    throw new Error(data.error);
+                }
+                
+                // Adicionar resposta do bot
+                chatLog.innerHTML += `
+                    <div class="message bot-message">
+                        <strong>Resposta:</strong> ${data.response}
+                    </div>`;
+                
+                // Rolagem automática
+                chatLog.scrollTop = chatLog.scrollHeight;
+            })
+            .catch(error => {
+                // Adicionar mensagem de erro
+                chatLog.innerHTML += `
+                    <div class="message bot-message" style="color: red;">
+                        <strong>Erro:</strong> ${error.message}
+                    </div>`;
+            })
+            .finally(() => {
+                messageInput.value = '';
+                messageInput.focus();
             });
+        });
+
+        // Dark/Light mode toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        
+        // Verificar preferência do usuário
+        if (localStorage.getItem('theme') === 'dark') {
+            body.classList.add('dark-mode');
+            themeToggle.textContent = '☀️ Light Mode';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-mode');
+            const isDarkMode = body.classList.contains('dark-mode');
+            localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+            themeToggle.textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
         });
     </script>
 </body>
